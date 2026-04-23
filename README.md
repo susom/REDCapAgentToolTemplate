@@ -335,11 +335,35 @@ case "my_action":
 
 ## Testing Your Tools
 
-### curl
+### Option 1: End-to-End via SecureChatAI (Recommended)
+
+The quickest way to test is through SecureChatAI itself — this is how tools actually run in production.
+
+1. Enable SecureChatAI on a project
+2. Add your tool EM's prefix to SecureChatAI's **Agent Tool EM Prefixes**
+3. Call SecureChatAI's API with agent mode enabled:
 
 ```bash
 curl -X POST https://your-redcap/api/ \
-  -d "token=YOUR_TOKEN" \
+  -d "token=YOUR_SECURECHAT_PROJECT_TOKEN" \
+  -d "content=externalModule" \
+  -d "prefix=secure_chat_ai" \
+  -d "action=callAI" \
+  -d 'payload={"message":"Greet the name World formally","agent_mode":true}'
+```
+
+This exercises the full flow: SecureChatAI → LLM decides to use your tool → EM-to-EM call → response back to LLM → final answer.
+
+### Option 2: Direct API Call to Your Tool EM
+
+You can also call your tool EM directly via the REDCap API. This bypasses SecureChatAI and is useful for testing individual tools in isolation.
+
+1. Enable your tool EM on a project (in addition to system-wide)
+2. Generate an API token for that project
+
+```bash
+curl -X POST https://your-redcap/api/ \
+  -d "token=YOUR_PROJECT_TOKEN" \
   -d "content=externalModule" \
   -d "prefix=redcap_agent_tool_template" \
   -d "action=example_greet" \
@@ -351,12 +375,14 @@ Expected response:
 {"greeting":"Good day, World. How may I assist you?","formal":true}
 ```
 
+> **Note:** This direct API path is why we include `api-actions` in config.json — it enables this external access pattern even though the primary production path is EM-to-EM.
+
 ### Common Mistakes
 
 | Symptom | Cause |
 |---------|-------|
 | 404 or "module not found" | Module not enabled, or prefix doesn't match directory name |
-| "Unknown action: X" | Action string in curl doesn't match `api-actions` key in config.json |
+| "Unknown action: X" | Action string doesn't match `api-actions` key in config.json |
 | Tool doesn't appear in LLM | Missing or malformed `agent-tool-definitions` entry |
 | LLM calls tool but gets wrong params | `api-action` in tool definition doesn't match `api-actions` key |
 | "Invalid JSON in payload" | Payload isn't valid JSON — check quoting in curl |
