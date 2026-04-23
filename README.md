@@ -64,7 +64,7 @@ config.json                         PHP Class
 └─────────────────────┘
 ```
 
-**1. `api-actions`** — Registers the endpoint with REDCap. Without this, the API call 404s.
+**1. `api-actions`** — Registers the action with REDCap's EM framework. Required for `redcap_module_api()` to accept the call.
 
 **2. `agent-tool-definitions`** — Tells the LLM the tool exists and how to call it. Without this, the LLM doesn't know the tool is available.
 
@@ -78,7 +78,9 @@ config.json                         PHP Class
 
 This is the part that's not obvious. config.json serves double duty: it configures the EM for REDCap **and** defines the tool schemas for the LLM.
 
-### `api-actions` — Registering Endpoints
+### `api-actions` — Registering Actions with REDCap
+
+This is a REDCap EM framework requirement. Every action string your `redcap_module_api()` handles must be declared here — think of it as a whitelist. Even though tool calls are EM-to-EM (no HTTP), the framework won't route the call without this registration.
 
 ```json
 "api-actions": {
@@ -93,7 +95,7 @@ This is the part that's not obvious. config.json serves double duty: it configur
 |-------|-------------|
 | Key (`"example_greet"`) | The action string passed to `redcap_module_api()`. This is what you switch on. |
 | `description` | Human-readable, for documentation only. Not shown to the LLM. |
-| `access` | Always `["auth"]` — requires a valid API token. |
+| `access` | `["auth"]` for authenticated access, `["public"]` for unauthenticated. Use `["auth"]` unless you have a reason not to. |
 
 **Naming convention:** `category_action` in snake_case. Examples: `records_get`, `projects_search`, `files_upload`, `reports_generate`.
 
