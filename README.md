@@ -1,8 +1,28 @@
-# REDCap Agent Template
+# REDCap Agent Tool Template
 
 A **starter template** for building SecureChatAI agent tool External Modules.
 
 Copy this module, rename it, replace the example tools with your own, and SecureChatAI will auto-discover it.
+
+---
+
+## Why Separate Tool EMs? (Not a Monolith)
+
+It's tempting to put every tool into a single EM. Don't. Here's why domain-grouped tool EMs are the right pattern:
+
+| Concern | Monolith (one EM) | Domain EMs (this pattern) |
+|---------|-------------------|--------------------------|
+| **Blast radius** | Bug in one tool breaks all tools | Bug in record tools doesn't affect webscrape tools |
+| **Deployment** | Can't push a fix without redeploying everything | Push and version each domain independently |
+| **Ownership** | Everyone edits the same files, merge conflicts | Different people/teams own different EMs |
+| **Enable/disable** | All or nothing | Turn off a broken or experimental tool set without affecting others |
+| **Config readability** | 50+ tool definitions in one config.json | Each EM has a focused, readable config |
+| **Reuse** | Can't share a subset across institutions | Ship `record_tools` to another site without dragging along unrelated tools |
+
+**"But Claude told me to use traits and abstract base classes..."**
+Generic advice for generic PHP projects. REDCap EMs are not generic PHP — they have a framework (`redcap_module_api`, config.json auto-discovery, `getModuleInstance()`). The framework already provides the abstraction layer. Adding traits/abstract classes on top adds complexity without solving a problem the framework doesn't already handle.
+
+**The rule of thumb:** One EM per tool *domain* (records, webscraping, reporting), not one EM per tool and not one EM for everything. If two tools share the same data context and always deploy together, they belong in the same EM.
 
 ---
 
@@ -240,7 +260,12 @@ public function toolMyAction(array $payload)
 
 ## `redcap_module_api()` — The Router
 
-This is the single entry point. REDCap calls it when an API request arrives with `content=externalModule` and your module's prefix.
+This is the single entry point for all tool calls. We use `redcap_module_api()` deliberately — it's REDCap's official EM-to-EM communication hook:
+
+- **Framework-standard:** Any REDCap EM developer recognizes this pattern immediately
+- **Whitelisted:** Only actions declared in `api-actions` are accepted — built-in security
+- **Dual-path for free:** Works via EM-to-EM PHP calls (primary) *and* HTTP API (if you ever need external access)
+- **Future-proof:** If Vanderbilt adds EM-to-EM auditing or security, you're already on the right hook
 
 ```php
 public function redcap_module_api($action = null, $payload = [])
