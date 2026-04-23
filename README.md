@@ -48,13 +48,14 @@ mv redcap_agent_yourtools_v9.9.9/REDCapAgentToolTemplate.php \
 
 ## How Auto-Discovery Works
 
-SecureChatAI scans for enabled EMs whose prefix starts with **`redcap_agent_`** and reads their `agent-tool-definitions` from config.json. That's it.
+SecureChatAI discovers tool EMs by matching their prefix against the **Agent Tool EM Prefixes** list (configurable at system or project level in SecureChatAI). Any EM whose prefix matches an entry in that list — and has `agent-tool-definitions` in its config.json — will be discovered.
+
+The `redcap_agent_` prefix is a **convention**, not a hard requirement. You could name your module `my_custom_tools_v1.0.0` and it would work fine as long as you add `my_custom_tools` to the prefix list. That said, `redcap_agent_*` is the recommended convention — it makes tool EMs instantly recognizable and easy to group.
 
 **Requirements for auto-discovery:**
-1. Module directory named `redcap_agent_<something>_v*`
-2. config.json contains `agent-tool-definitions` array
+1. EM prefix listed in SecureChatAI's **Agent Tool EM Prefixes** (system or project level)
+2. config.json contains an `agent-tool-definitions` array
 3. Module is enabled **system-wide** in REDCap (project-level enablement is not required)
-4. EM prefix listed in SecureChatAI's **Agent Tool EM Prefixes** (system or project level)
 
 Tools are invoked via direct PHP calls (EM-to-EM, same process). No API tokens, no HTTP, no network overhead — just one EM calling another's `redcap_module_api()` method. This is true even when the initial request to SecureChatAI arrived externally via the REDCap API.
 
