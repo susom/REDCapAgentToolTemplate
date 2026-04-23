@@ -13,10 +13,14 @@ class REDCapAgentToolTemplate extends \ExternalModules\AbstractExternalModule {
     }
 
     // =========================================================================
-    //  API ROUTER
-    //  This is the single entry point for all agent tool calls.
-    //  REDCap's EM framework calls this method when an API request arrives
-    //  with content=externalModule and prefix=your_module_prefix.
+    //  API ROUTER — redcap_module_api()
+    //
+    //  Single entry point for all tool calls. Called two ways:
+    //    - EM-to-EM (primary): SecureChatAI calls getModuleInstance()->redcap_module_api()
+    //    - HTTP API (testing/external): curl with content=externalModule&prefix=...
+    //
+    //  We use redcap_module_api() deliberately — it's REDCap's official EM
+    //  communication hook, with built-in action whitelisting via api-actions.
     //
     //  $action  — matches a key in config.json's "api-actions" (e.g., "example_greet")
     //  $payload — the parsed request body / POST parameters
@@ -24,7 +28,10 @@ class REDCapAgentToolTemplate extends \ExternalModules\AbstractExternalModule {
     public function redcap_module_api($action = null, $payload = [])
     {
         // --- Normalize payload ---
-        // REDCap API framework passes payload as ['payload' => '{"json":"string"}']
+        // Two entry paths send payload differently:
+        //   - EM-to-EM: payload arrives as a PHP array directly
+        //   - HTTP API: payload arrives as a JSON string in $_POST['payload']
+        // This block handles both transparently.
         if (!empty($payload['payload'])) {
             $payloadData = json_decode($payload['payload'], true);
             if (json_last_error() === JSON_ERROR_NONE) {
