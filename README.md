@@ -82,7 +82,7 @@ config.json                         PHP Class
 └─────────────────────┘
 ```
 
-**1. `api-actions`** — Registers the action with REDCap's EM framework. Required for `redcap_module_api()` to accept the call.
+**1. `api-actions`** — Registers the action with REDCap's EM framework. Not strictly required for EM-to-EM calls today, but ensures your tools are whitelisted for external API access and future framework features.
 
 **2. `agent-tool-definitions`** — Tells the LLM the tool exists and how to call it. Without this, the LLM doesn't know the tool is available.
 
@@ -98,7 +98,7 @@ This is the part that's not obvious. config.json serves double duty: it configur
 
 ### `api-actions` — Registering Actions with REDCap
 
-This is a REDCap EM framework requirement. Every action string your `redcap_module_api()` handles must be declared here — think of it as a whitelist. Even though tool calls are EM-to-EM (no HTTP), the framework won't route the call without this registration.
+This is a REDCap EM framework convention. Every action string your `redcap_module_api()` handles should be declared here. For EM-to-EM calls (the primary path), this isn't strictly enforced today — but it whitelists your actions for external API access and keeps you aligned with future framework changes.
 
 ```json
 "api-actions": {
