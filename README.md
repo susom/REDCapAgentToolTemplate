@@ -6,23 +6,20 @@ Copy this module, rename it, replace the example tools with your own, and Secure
 
 ---
 
-## Why Separate Tool EMs? (Not a Monolith)
+## Why Domain-Grouped Tool EMs?
 
-It's tempting to put every tool into a single EM. Don't. Here's why domain-grouped tool EMs are the right pattern:
+Tool EMs are organized by domain — e.g., `record_tools`, `webscrape_tools`, `reporting_tools`. Each domain gets its own EM. This keeps things focused:
 
-| Concern | Monolith (one EM) | Domain EMs (this pattern) |
-|---------|-------------------|--------------------------|
-| **Blast radius** | Bug in one tool breaks all tools | Bug in record tools doesn't affect webscrape tools |
-| **Deployment** | Can't push a fix without redeploying everything | Push and version each domain independently |
-| **Ownership** | Everyone edits the same files, merge conflicts | Different people/teams own different EMs |
-| **Enable/disable** | All or nothing | Turn off a broken or experimental tool set without affecting others |
-| **Config readability** | 50+ tool definitions in one config.json | Each EM has a focused, readable config |
-| **Reuse** | Can't share a subset across institutions | Ship `record_tools` to another site without dragging along unrelated tools |
+| Benefit | How |
+|---------|-----|
+| **Independent deployment** | Push a fix to record tools without touching webscrape tools |
+| **Scoped blast radius** | A bug in one domain doesn't affect others |
+| **Clean ownership** | Different people can own different tool sets |
+| **Selective enablement** | Turn off an experimental tool set without disabling everything |
+| **Readable config** | Each EM has a focused, manageable config.json |
+| **Portable** | Ship `record_tools` to another institution without dragging unrelated tools along |
 
-**"But Claude told me to use traits and abstract base classes..."**
-Generic advice for generic PHP projects. REDCap EMs are not generic PHP — they have a framework (`redcap_module_api`, config.json auto-discovery, `getModuleInstance()`). The framework already provides the abstraction layer. Adding traits/abstract classes on top adds complexity without solving a problem the framework doesn't already handle.
-
-**The rule of thumb:** One EM per tool *domain* (records, webscraping, reporting), not one EM per tool and not one EM for everything. If two tools share the same data context and always deploy together, they belong in the same EM.
+**Rule of thumb:** One EM per tool *domain*. If two tools share the same data context and always deploy together, they belong in the same EM.
 
 ---
 
