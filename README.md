@@ -39,7 +39,9 @@ SecureChatAI scans for enabled EMs whose prefix starts with **`redcap_agent_`** 
 3. Module is enabled **system-wide** in REDCap (project-level enablement is not required)
 4. EM prefix listed in SecureChatAI's **Agent Tool EM Prefixes** (system or project level)
 
-Tools are invoked via direct PHP calls (EM-to-EM, same process). No API tokens, no HTTP, no network overhead — just one EM calling another's `redcap_module_api()` method.
+**Internal use:** Tools are invoked via direct PHP calls (EM-to-EM, same process). No API tokens, no HTTP, no network overhead — just one EM calling another's `redcap_module_api()` method.
+
+**External use:** Tools can also be called over HTTP via the REDCap API. Enable the module on a project, generate an API token, and configure SecureChatAI with the token and API URL.
 
 ---
 
