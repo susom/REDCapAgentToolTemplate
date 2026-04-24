@@ -29,67 +29,6 @@
 
 
 
-	"api-actions": {
-		"example_greet": {
-			"description": "Agent tool: return a greeting for the given name",
-			"access": ["auth"]
-		},
-		"example_add": {
-			"description": "Agent tool: add two numbers together",
-			"access": ["auth"]
-		}
-	},
-
-
-
-	"agent-tool-definitions": [
-		{
-			"name": "example.greet",
-			"description": "Return a personalized greeting message for the given name.",
-			"api-action": "example_greet",
-			"parameters": {
-				"type": "object",
-				"properties": {
-					"name": {
-						"type": "string",
-						"description": "The name to greet"
-					},
-					"formal": {
-						"type": "boolean",
-						"description": "If true, use formal greeting style",
-						"default": false
-					}
-				},
-				"required": ["name"]
-			},
-			"readOnly": true,
-			"destructive": false
-		},
-		{
-			"name": "example.add",
-			"description": "Add two numbers together and return the sum.",
-			"api-action": "example_add",
-			"parameters": {
-				"type": "object",
-				"properties": {
-					"a": {
-						"type": "number",
-						"description": "First number"
-					},
-					"b": {
-						"type": "number",
-						"description": "Second number"
-					}
-				},
-				"required": ["a", "b"]
-			},
-			"readOnly": true,
-			"destructive": false
-		}
-	],
-
-
-
 	"project-settings": [
 		{
 			"key": "enable-project-debug-logging",

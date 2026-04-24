@@ -48,140 +48,113 @@ mv redcap_agent_yourtools_v9.9.9/REDCapAgentToolTemplate.php \
 
 ## How Auto-Discovery Works
 
-SecureChatAI discovers tool EMs by matching their prefix against the **Agent Tool EM Prefixes** list (configurable at system or project level in SecureChatAI). Any EM whose prefix matches an entry in that list — and has `agent-tool-definitions` in its config.json — will be discovered.
+SecureChatAI discovers tool EMs by matching their prefix against the **Agent Tool EM Prefixes** list (configurable at system or project level in SecureChatAI). Any EM whose prefix matches an entry in that list — and has a `tools.json` manifest — will be discovered.
 
 The `redcap_agent_` prefix is a **convention**, not a hard requirement. You could name your module `my_custom_tools_v1.0.0` and it would work fine as long as you add `my_custom_tools` to the prefix list. That said, `redcap_agent_*` is the recommended convention — it makes tool EMs instantly recognizable and easy to group.
 
 **Requirements for auto-discovery:**
 1. EM prefix listed in SecureChatAI's **Agent Tool EM Prefixes** (system or project level)
-2. config.json contains an `agent-tool-definitions` array
+2. Module contains a `tools.json` file with tool definitions
 3. Module is enabled **system-wide** in REDCap (project-level enablement is not required)
 
-Tools are invoked via direct PHP calls (EM-to-EM, same process). No API tokens, no HTTP, no network overhead — just one EM calling another's `redcap_module_api()` method. This is true even when the initial request to SecureChatAI arrived externally via the REDCap API.
+Tools are invoked via direct PHP calls (EM-to-EM, same process). No API tokens, no HTTP, no network overhead — just one EM calling another's `handleToolCall()` method.
 
 ---
 
-## The Three Things That Must Stay In Sync
+## The Two Things That Must Stay In Sync
 
-Every tool EM has three parts. If any of them are out of sync, the tool won't work:
+Every tool EM has two parts that must agree. If they're out of sync, the tool won't work:
 
 ```
-config.json                         PHP Class
-┌─────────────────────┐            ┌─────────────────────────┐
-│                     │            │                         │
-│ 1. "api-actions": { │ ───maps──→ │ 3. redcap_module_api()  │
-│    "my_action": {}  │            │      case "my_action":  │
-│    }                │            │        return toolX()   │
-│                     │            │                         │
-│ 2. "agent-tool-     │            └─────────────────────────┘
-│     definitions":   │
-│    [{               │ ───tells LLM──→ what tools exist
-│      "api-action":  │                  and how to call them
-│        "my_action"  │
-│    }]               │
-└─────────────────────┘
+tools.json                          PHP Class
+┌─────────────────────┐            ┌──────────────────────────┐
+│                     │            │                          │
+│  "action":          │ ───maps──→ │  handleToolCall()        │
+│    "my_action"      │            │    case "my_action":     │
+│                     │            │      return toolX()      │
+│  "name":            │            │                          │
+│    "cat.myAction"   │ ─tells LLM→ what tools exist         │
+│                     │            │  and how to call them    │
+│  "parameters": {}   │            │                          │
+└─────────────────────┘            └──────────────────────────┘
 ```
 
-**1. `api-actions`** — Registers the action with REDCap's EM framework. Not strictly required for EM-to-EM calls today, but ensures your tools are whitelisted for external API access and future framework features.
+**1. `tools.json`** — Declares the tool's name, description, parameters, and `action` string. SecureChatAI reads this to build the LLM tool list. Without it, the LLM doesn't know the tool exists.
 
-**2. `agent-tool-definitions`** — Tells the LLM the tool exists and how to call it. Without this, the LLM doesn't know the tool is available.
+**2. `switch` case in `handleToolCall()`** — Routes the `action` string to your PHP method. Without this, the call returns "Unknown action".
 
-**3. `switch` case in `redcap_module_api()`** — Routes the action to your PHP method. Without this, the call returns "Unknown action".
-
-**The linking key is the action name** (e.g., `"my_action"`). It must be identical in all three places.
+**The linking key is the `action` string** (e.g., `"my_action"`). It must be identical in both places.
 
 ---
 
-## config.json Deep Dive
+## tools.json — The Tool Manifest
 
-This is the part that's not obvious. config.json serves double duty: it configures the EM for REDCap **and** defines the tool schemas for the LLM.
-
-### `api-actions` — Registering Actions with REDCap
-
-This is a REDCap EM framework convention. Every action string your `redcap_module_api()` handles should be declared here. For EM-to-EM calls (the primary path), this isn't strictly enforced today — but it whitelists your actions for external API access and keeps you aligned with future framework changes.
-
-```json
-"api-actions": {
-    "example_greet": {
-        "description": "Agent tool: return a greeting for the given name",
-        "access": ["auth"]
-    }
-}
-```
-
-| Field | What it does |
-|-------|-------------|
-| Key (`"example_greet"`) | The action string passed to `redcap_module_api()`. This is what you switch on. |
-| `description` | Human-readable, for documentation only. Not shown to the LLM. |
-| `access` | `["auth"]` for authenticated access, `["public"]` for unauthenticated. Use `["auth"]` unless you have a reason not to. |
-
-**Naming convention:** `category_action` in snake_case. Examples: `records_get`, `projects_search`, `files_upload`, `reports_generate`.
-
-### `agent-tool-definitions` — Teaching the LLM
-
-This is an array of tool definitions. Each one tells the LLM:
-- **What the tool is called** (the name the LLM uses when making a tool call)
-- **What it does** (the LLM reads this to decide when to use it)
-- **What parameters it accepts** (JSON Schema format)
-- **Which API action to call** (links back to `api-actions`)
+This is a separate file (not embedded in config.json) that declares your tools for the LLM. SecureChatAI's auto-discovery reads this file directly.
 
 Here's a fully annotated example:
 
 ```json
 {
-    "name": "example.greet",
-    //       ^^^^^^^^^^^^^^
-    //       LLM-facing name. Use dot.notation: "category.action"
-    //       This is what appears in the LLM's tool call.
+    "tools": [
+        {
+            "name": "example.greet",
+            //       ^^^^^^^^^^^^^^
+            //       LLM-facing name. Use dot.notation: "category.action"
+            //       This is what appears in the LLM's tool call.
 
-    "description": "Return a personalized greeting message for the given name.",
-    //              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    //              THE MOST IMPORTANT FIELD. The LLM reads this to decide
-    //              whether to use this tool. Be specific and clear.
-    //              Bad:  "Greet someone"
-    //              Good: "Return a personalized greeting message for the given name."
+            "description": "Return a personalized greeting message for the given name.",
+            //              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            //              THE MOST IMPORTANT FIELD. The LLM reads this to decide
+            //              whether to use this tool. Be specific and clear.
+            //              Bad:  "Greet someone"
+            //              Good: "Return a personalized greeting message for the given name."
 
-    "api-action": "example_greet",
-    //             ^^^^^^^^^^^^^^
-    //             Must EXACTLY match a key in "api-actions" above.
-    //             This is the glue between the LLM schema and the PHP router.
+            "action": "example_greet",
+            //         ^^^^^^^^^^^^^^
+            //         Must EXACTLY match a case in handleToolCall().
+            //         This is the glue between the LLM schema and the PHP router.
 
-    "parameters": {
-        "type": "object",
-        //       ^^^^^^ Always "object" at the top level.
+            "parameters": {
+                "type": "object",
+                //       ^^^^^^ Always "object" at the top level.
 
-        "properties": {
-            "name": {
-                "type": "string",
-                //       ^^^^^^ JSON Schema types: string, integer, number, boolean, array, object
-                "description": "The name to greet"
-                //              ^^^^^^^^^^^^^^^^^
-                //              LLM reads this to know what value to pass.
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        //       ^^^^^^ JSON Schema types: string, integer, number,
+                        //              boolean, array, object
+                        "description": "The name to greet"
+                        //              ^^^^^^^^^^^^^^^^^
+                        //              LLM reads this to know what value to pass.
+                    },
+                    "formal": {
+                        "type": "boolean",
+                        "description": "If true, use formal greeting style",
+                        "default": false
+                        //          ^^^^^ Tells the LLM the default if omitted.
+                    }
+                },
+
+                "required": ["name"]
+                //           ^^^^^^ Which params the LLM MUST provide.
+                //           Omitted params are optional.
             },
-            "formal": {
-                "type": "boolean",
-                "description": "If true, use formal greeting style",
-                "default": false
-                //          ^^^^^ Tells the LLM the default if omitted.
-            }
-        },
 
-        "required": ["name"]
-        //           ^^^^^^ Which params the LLM MUST provide.
-        //           Omitted params are optional.
-    },
+            "readOnly": true,
+            //          ^^^^ Hint to the orchestrator:
+            //               true  = this tool only reads data (safe to call freely)
+            //               false = this tool modifies data
 
-    "readOnly": true,
-    //          ^^^^ Hint to the orchestrator:
-    //               true  = this tool only reads data (safe to call freely)
-    //               false = this tool modifies data
-
-    "destructive": false
-    //             ^^^^^ Hint to the orchestrator:
-    //                   true  = this tool deletes or irreversibly modifies data
-    //                   false = safe or reversible
+            "destructive": false
+            //             ^^^^^ Hint to the orchestrator:
+            //                   true  = this tool deletes or irreversibly modifies data
+            //                   false = safe or reversible
+        }
+    ]
 }
 ```
+
+> **Note:** Comments are shown above for documentation only — JSON does not support comments. See the actual `tools.json` in this repo for the clean version.
 
 ### Parameter Types Reference
 
@@ -203,6 +176,20 @@ Here's a fully annotated example:
     "description": "Filter by status"
 }
 ```
+
+---
+
+## config.json — EM Registration Only
+
+With tool definitions moved to `tools.json`, config.json is now purely for REDCap EM framework registration — the standard stuff every EM needs:
+
+- **`name`** — Module display name
+- **`namespace`** — PHP namespace
+- **`description`** — Shown in the EM manager
+- **`framework-version`** — EM framework version (use 14+)
+- **`authors`**, **`links`**, etc. — Standard EM metadata
+
+No `api-actions`, no tool definitions. Clean separation of concerns.
 
 ---
 
@@ -251,85 +238,76 @@ public function toolMyAction(array $payload)
 - **Never throw exceptions** past the tool method boundary — always return `["error" => true, ...]`
 - **Always validate** required params before doing anything
 - **Always try-catch** the core logic
-- **`"error" => true`** in the return array triggers HTTP 400 via `wrapResponse()`
+- **Return raw arrays** — no HTTP wrapping. SecureChatAI handles serialization.
+- **`"error" => true`** in the return array signals failure to the orchestrator
 - **Log errors** with `$this->emError()`, debug info with `$this->emDebug()`
 
 ---
 
-## `redcap_module_api()` — The Router
+## `handleToolCall()` — The Router
 
-This is the single entry point for all tool calls. We use `redcap_module_api()` deliberately — it's REDCap's official EM-to-EM communication hook:
-
-- **Framework-standard:** Any REDCap EM developer recognizes this pattern immediately
-- **Whitelisted:** Only actions declared in `api-actions` are accepted — built-in security
-- **Dual-path for free:** Works via EM-to-EM PHP calls (primary) *and* HTTP API (if you ever need external access)
-- **Future-proof:** If Vanderbilt adds EM-to-EM auditing or security, you're already on the right hook
+This is the single entry point for all tool calls. SecureChatAI calls it directly via EM-to-EM PHP:
 
 ```php
-public function redcap_module_api($action = null, $payload = [])
-{
-    // ... payload normalization (copy from template) ...
+// SecureChatAI does this internally:
+$toolModule = \ExternalModules\ExternalModules::getModuleInstance($prefix);
+$result = $toolModule->handleToolCall($action, $payload);
+```
 
+Your implementation is a simple switch:
+
+```php
+public function handleToolCall(string $action, array $payload = []): array
+{
     switch ($action) {
-        case "example_greet":                    // ← matches api-actions key
-            return $this->wrapResponse(
-                $this->toolGreet($payload)       // ← your tool method
-            );
+        case "example_greet":              // ← matches "action" in tools.json
+            return $this->toolGreet($payload);
 
         case "example_add":
-            return $this->wrapResponse(
-                $this->toolAdd($payload)
-            );
+            return $this->toolAdd($payload);
 
         default:
-            return $this->wrapResponse([
+            return [
                 "error" => true,
                 "message" => "Unknown action: $action"
-            ], 400);
-        }
+            ];
+    }
 }
 ```
 
-**Payload normalization:** The top of this method handles the various ways REDCap might pass the payload (nested JSON string, POST params, raw body). Copy it as-is from the template — you shouldn't need to modify it.
+**Key points:**
+- **No HTTP surface** — this method is only callable from other EMs in the same PHP process
+- **No payload normalization needed** — SecureChatAI always passes a clean PHP array
+- **Returns raw arrays** — no HTTP status codes or headers to worry about
+- **Action string** must exactly match the `"action"` field in `tools.json`
 
 ---
 
 ## Adding a New Tool — Checklist
 
-Every time you add a tool, you touch exactly 3 places:
+Every time you add a tool, you touch exactly 2 places:
 
-### ☐ 1. config.json → `api-actions`
-
-```json
-"my_action": {
-    "description": "Agent tool: what it does",
-    "access": ["auth"]
-}
-```
-
-### ☐ 2. config.json → `agent-tool-definitions`
+### ☐ 1. tools.json → add a tool definition
 
 ```json
 {
     "name": "category.myAction",
     "description": "Clear description the LLM will read",
-    "api-action": "my_action",
+    "action": "my_action",
     "parameters": { ... },
     "readOnly": true,
     "destructive": false
 }
 ```
 
-### ☐ 3. PHP → switch case + tool method
+### ☐ 2. PHP → switch case + tool method
 
 ```php
 case "my_action":
-    return $this->wrapResponse(
-        $this->toolMyAction($payload)
-    );
+    return $this->toolMyAction($payload);
 ```
 
-**Verify the action string is identical in all three places.**
+**Verify the `action` string is identical in both places.**
 
 ---
 
@@ -354,38 +332,24 @@ curl -X POST https://your-redcap/api/ \
 
 This exercises the full flow: SecureChatAI → LLM decides to use your tool → EM-to-EM call → response back to LLM → final answer.
 
-### Option 2: Direct API Call to Your Tool EM
+### Option 2: PHP Unit / Integration Test
 
-You can also call your tool EM directly via the REDCap API. This bypasses SecureChatAI and is useful for testing individual tools in isolation.
+Since `handleToolCall()` is a plain PHP method, you can call it directly in any test harness:
 
-1. Enable your tool EM on a project (in addition to system-wide)
-2. Generate an API token for that project
-
-```bash
-curl -X POST https://your-redcap/api/ \
-  -d "token=YOUR_PROJECT_TOKEN" \
-  -d "content=externalModule" \
-  -d "prefix=redcap_agent_tool_template" \
-  -d "action=example_greet" \
-  -d 'payload={"name":"World","formal":true}'
+```php
+$toolEM = \ExternalModules\ExternalModules::getModuleInstance('redcap_agent_tool_template');
+$result = $toolEM->handleToolCall('example_greet', ['name' => 'World', 'formal' => true]);
+// $result = ["greeting" => "Good day, World. How may I assist you?", "formal" => true]
 ```
-
-Expected response:
-```json
-{"greeting":"Good day, World. How may I assist you?","formal":true}
-```
-
-> **Note:** This direct API path is why we include `api-actions` in config.json — it enables this external access pattern even though the primary production path is EM-to-EM.
 
 ### Common Mistakes
 
 | Symptom | Cause |
 |---------|-------|
-| 404 or "module not found" | Module not enabled, or prefix doesn't match directory name |
-| "Unknown action: X" | Action string doesn't match `api-actions` key in config.json |
-| Tool doesn't appear in LLM | Missing or malformed `agent-tool-definitions` entry |
-| LLM calls tool but gets wrong params | `api-action` in tool definition doesn't match `api-actions` key |
-| "Invalid JSON in payload" | Payload isn't valid JSON — check quoting in curl |
+| Tool doesn't appear in LLM | Missing or malformed `tools.json`, or prefix not in SecureChatAI's prefix list |
+| "Unknown action: X" | `action` string in tools.json doesn't match switch case in `handleToolCall()` |
+| Module not found | EM not enabled system-wide, or prefix doesn't match directory name |
+| LLM calls tool with wrong params | Check `parameters` schema in tools.json — LLMs follow it literally |
 
 ---
 
@@ -393,7 +357,8 @@ Expected response:
 
 ```
 redcap_agent_yourtools_v9.9.9/
-├── config.json                 ← Tool registration (api-actions + agent-tool-definitions)
+├── config.json                 ← EM registration (standard REDCap EM metadata)
+├── tools.json                  ← Tool manifest (LLM tool definitions)
 ├── REDCapAgentYourTools.php    ← Router + tool implementations
 ├── emLoggerTrait.php           ← Logging helper (copy as-is, update namespace)
 └── README.md

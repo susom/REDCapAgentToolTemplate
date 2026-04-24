@@ -1,0 +1,47 @@
+{
+	"tools": [
+		{
+			"name": "example.greet",
+			"description": "Return a personalized greeting message for the given name.",
+			"action": "example_greet",
+			"parameters": {
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string",
+						"description": "The name to greet"
+					},
+					"formal": {
+						"type": "boolean",
+						"description": "If true, use formal greeting style",
+						"default": false
+					}
+				},
+				"required": ["name"]
+			},
+			"readOnly": true,
+			"destructive": false
+		},
+		{
+			"name": "example.add",
+			"description": "Add two numbers together and return the sum.",
+			"action": "example_add",
+			"parameters": {
+				"type": "object",
+				"properties": {
+					"a": {
+						"type": "number",
+						"description": "First number"
+					},
+					"b": {
+						"type": "number",
+						"description": "Second number"
+					}
+				},
+				"required": ["a", "b"]
+			},
+			"readOnly": true,
+			"destructive": false
+		}
+	]
+}

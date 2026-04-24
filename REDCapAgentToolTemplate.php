@@ -13,96 +13,46 @@ class REDCapAgentToolTemplate extends \ExternalModules\AbstractExternalModule {
     }
 
     // =========================================================================
-    //  API ROUTER — redcap_module_api()
+    //  TOOL ROUTER — handleToolCall()
     //
-    //  Single entry point for all tool calls. Called two ways:
-    //    - EM-to-EM (primary): SecureChatAI calls getModuleInstance()->redcap_module_api()
-    //    - HTTP API (testing/external): curl with content=externalModule&prefix=...
+    //  Single entry point for all tool calls. Called by SecureChatAI via:
+    //    getModuleInstance($prefix)->handleToolCall($action, $input)
     //
-    //  We use redcap_module_api() deliberately — it's REDCap's official EM
-    //  communication hook, with built-in action whitelisting via api-actions.
+    //  This is an EM-to-EM direct PHP call — no HTTP, no API tokens.
+    //  There is no external API surface; this method is only reachable
+    //  from other EMs in the same PHP process.
     //
-    //  $action  — matches a key in config.json's "api-actions" (e.g., "example_greet")
-    //  $payload — the parsed request body / POST parameters
+    //  $action  — matches the "action" field in tools.json (e.g., "example_greet")
+    //  $payload — the parsed arguments from the LLM's tool call
     // =========================================================================
-    public function redcap_module_api($action = null, $payload = [])
+    public function handleToolCall(string $action, array $payload = []): array
     {
-        // --- Normalize payload ---
-        // Two entry paths send payload differently:
-        //   - EM-to-EM: payload arrives as a PHP array directly
-        //   - HTTP API: payload arrives as a JSON string in $_POST['payload']
-        // This block handles both transparently.
-        if (!empty($payload['payload'])) {
-            $payloadData = json_decode($payload['payload'], true);
-            if (json_last_error() === JSON_ERROR_NONE) {
-                $payload = $payloadData;
-            }
-        } elseif (empty($payload)) {
-            if (!empty($_POST['payload'])) {
-                $payload = json_decode($_POST['payload'], true);
-                if (json_last_error() !== JSON_ERROR_NONE) {
-                    return $this->wrapResponse([
-                        "error" => true,
-                        "message" => "Invalid JSON in payload parameter"
-                    ], 400);
-                }
-            } else {
-                $raw = file_get_contents("php://input");
-                $decoded = json_decode($raw, true);
-                if (json_last_error() === JSON_ERROR_NONE) {
-                    $payload = $decoded;
-                } else {
-                    $payload = $_POST;
-                }
-            }
-        }
-
-        $this->emDebug("Agent API call", [
+        $this->emDebug("Agent tool call", [
             'action' => $action,
             'payload' => $payload
         ]);
 
         // --- Route to tool method ---
-        // Each case must match a key in config.json "api-actions".
+        // Each case must match an "action" value in tools.json.
         // Each tool method receives $payload and returns an associative array.
         switch ($action) {
 
             case "example_greet":
-                return $this->wrapResponse(
-                    $this->toolGreet($payload)
-                );
+                return $this->toolGreet($payload);
 
             case "example_add":
-                return $this->wrapResponse(
-                    $this->toolAdd($payload)
-                );
+                return $this->toolAdd($payload);
 
             // Add your tools here:
             // case "my_action":
-            //     return $this->wrapResponse(
-            //         $this->toolMyAction($payload)
-            //     );
+            //     return $this->toolMyAction($payload);
 
             default:
-                return $this->wrapResponse([
+                return [
                     "error" => true,
                     "message" => "Unknown action: $action"
-                ], 400);
+                ];
         }
-    }
-
-    // =========================================================================
-    //  RESPONSE WRAPPER
-    //  Converts a tool's result array into the HTTP response format REDCap expects.
-    //  If the result contains "error" => true, the status code is set to 400.
-    // =========================================================================
-    private function wrapResponse(array $result, int $defaultStatus = 200)
-    {
-        return [
-            "status"  => isset($result['error']) ? 400 : $defaultStatus,
-            "body"    => json_encode($result),
-            "headers" => ["Content-Type" => "application/json"]
-        ];
     }
 
     // =========================================================================
